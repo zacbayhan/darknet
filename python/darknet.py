@@ -6,6 +6,7 @@ from pprint import pprint
 import json
 from elasticsearch import Elasticsearch
 import time
+import itertools
 
 def sample(probs):
     s = sum(probs)
@@ -150,13 +151,8 @@ def detect(net, meta, image, thresh=.5, hier_thresh=.5, nms=.45):
 
 def classify_objects(net, meta, dir, fid):
     resps = detect(net, meta, dir+'/'+fid)
-    #resp = enhance_data(resps)
-
     basename, file_ext = fid.split(".")
-
-
-    pprint(resps)
-
+    resps = enhance_data(resps)
 
     es.index(
             index='darknet',
@@ -166,13 +162,11 @@ def classify_objects(net, meta, dir, fid):
             body={
             'dir_loc':dir+'/'+fid,
             'time_stamp':time.strftime("%Y%m%d"),
-            'detected_objects':[list(itertools.chain(*resps))]
+            'detected_objects':resps
             }
         )
-    #index_local_cluster(base_data)
-    return base_data
 
-import itertools
+    return resps
 
 def enhance_data(resp):
     #temperay for data transformations
@@ -197,7 +191,7 @@ if __name__ == "__main__":
     MIN_FILES=0
 
     dir = 'images'
-    result_dir = 'result_dir'
+    result_dir = 'results'
     file_list = os.listdir(dir)
     #avoid excesivly turning on and off
     if(len(file_list) > MIN_FILES):

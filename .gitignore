@@ -21,7 +21,7 @@ cfg/
 darknet
 .fuse*
 yolov3.weights
-
+results/
 
 # OS Generated #
 .DS_Store*
