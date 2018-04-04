@@ -1,4 +1,6 @@
 *.o
+*.a
+*.so
 *.dSYM
 *.csv
 *.out
@@ -18,6 +20,8 @@ submission/
 cfg/
 darknet
 .fuse*
+yolov3.weights
+
 
 # OS Generated #
 .DS_Store*

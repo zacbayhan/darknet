@@ -1,6 +1,11 @@
 from ctypes import *
 import math
 import random
+import os, os.path
+from pprint import pprint
+import json
+from elasticsearch import Elasticsearch
+import time
 
 def sample(probs):
     s = sum(probs)
@@ -42,7 +47,7 @@ class METADATA(Structure):
     _fields_ = [("classes", c_int),
                 ("names", POINTER(c_char_p))]
 
-    
+
 
 #lib = CDLL("/home/pjreddie/documents/darknet/libdarknet.so", RTLD_GLOBAL)
 lib = CDLL("libdarknet.so", RTLD_GLOBAL)
@@ -141,16 +146,63 @@ def detect(net, meta, image, thresh=.5, hier_thresh=.5, nms=.45):
     free_image(im)
     free_detections(dets, num)
     return res
-    
-if __name__ == "__main__":
-    #net = load_net("cfg/densenet201.cfg", "/home/pjreddie/trained/densenet201.weights", 0)
-    #im = load_image("data/wolf.jpg", 0, 0)
-    #meta = load_meta("cfg/imagenet1k.data")
-    #r = classify(net, meta, im)
-    #print r[:10]
-    net = load_net("cfg/tiny-yolo.cfg", "tiny-yolo.weights", 0)
-    meta = load_meta("cfg/coco.data")
-    r = detect(net, meta, "data/dog.jpg")
-    print r
-    
 
+
+def classify_objects(net, meta, dir, fid):
+    resps = detect(net, meta, dir+'/'+fid)
+    #resp = enhance_data(resps)
+
+    basename, file_ext = fid.split(".")
+
+
+    pprint(resps)
+
+
+    es.index(
+            index='darknet',
+            doc_type=file_ext,
+            id=basename,
+            pipeline='darknet',
+            body={
+            'dir_loc':dir+'/'+fid,
+            'time_stamp':time.strftime("%Y%m%d"),
+            'detected_objects':[list(itertools.chain(*resps))]
+            }
+        )
+    #index_local_cluster(base_data)
+    return base_data
+
+import itertools
+
+def enhance_data(resp):
+    #temperay for data transformations
+    return resp
+
+
+def write_files(resp, result_dir, fid):
+    basename, file_ext = fid.split(".")
+    try:
+        with open(result_dir+'/'+basename+'.json', 'w') as outfile:
+            json.dump(resp, outfile)
+    except:
+        os.mkdir(result_dir)
+        with open(result_dir+'/'+basename+'.json', 'w') as outfile:
+            json.dump(resp, outfile)
+
+
+if __name__ == "__main__":
+
+    es = Elasticsearch()
+
+    MIN_FILES=0
+
+    dir = 'images'
+    result_dir = 'result_dir'
+    file_list = os.listdir(dir)
+    #avoid excesivly turning on and off
+    if(len(file_list) > MIN_FILES):
+        net = load_net("cfg/yolov3.cfg", "yolov3.weights", 0)
+        meta = load_meta("cfg/coco.data")
+        for i in range(0,len(file_list)):
+            resp = classify_objects(net, meta, dir, file_list[i])
+            write_files(resp, result_dir, file_list[i])
