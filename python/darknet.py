@@ -6,6 +6,7 @@ from pprint import pprint
 import json
 from elasticsearch import Elasticsearch
 import time
+import datetime
 import itertools
 
 def sample(probs):
@@ -51,7 +52,7 @@ class METADATA(Structure):
 
 
 #lib = CDLL("/home/pjreddie/documents/darknet/libdarknet.so", RTLD_GLOBAL)
-lib = CDLL("libdarknet.so", RTLD_GLOBAL)
+lib = CDLL("/home/zack/darknet/libdarknet.so", RTLD_GLOBAL)
 lib.network_width.argtypes = [c_void_p]
 lib.network_width.restype = c_int
 lib.network_height.argtypes = [c_void_p]
@@ -148,29 +149,46 @@ def detect(net, meta, image, thresh=.5, hier_thresh=.5, nms=.45):
     free_detections(dets, num)
     return res
 
-
+#
+## This is the function
+#
 def classify_objects(net, meta, dir, fid):
     resps = detect(net, meta, dir+'/'+fid)
     basename, file_ext = fid.split(".")
-    resps = enhance_data(resps)
 
-    es.index(
-            index='darknet',
-            doc_type=file_ext,
-            id=basename,
-            pipeline='darknet',
-            body={
-            'dir_loc':dir+'/'+fid,
-            'time_stamp':time.strftime("%Y%m%d"),
-            'detected_objects':resps
+    objects=[]
+
+    for i in range(len(resps)):
+
+        detected={
+            'detected_object': resps[i][0],
+            'confidence': resps[i][1],
+            'coordinates': [
+            {
+                'x': resps[i][2][0],
+                'y': resps[i][2][1],
+                'width': resps[i][2][2],
+                'height': resps[i][2][3]
             }
+          ]
+        }
+
+        objects.append(detected)
+
+        data={
+            'dir_loc': dir+'/'+fid,
+            'objects': objects
+        }
+
+        es.index(
+                index='darknet',
+                doc_type=file_ext,
+                id=basename,
+                pipeline='darknet',
+                body=data
         )
 
-    return resps
-
-def enhance_data(resp):
-    #temperay for data transformations
-    return resp
+    return data
 
 
 def write_files(resp, result_dir, fid):
@@ -199,4 +217,4 @@ if __name__ == "__main__":
         meta = load_meta("cfg/coco.data")
         for i in range(0,len(file_list)):
             resp = classify_objects(net, meta, dir, file_list[i])
-            write_files(resp, result_dir, file_list[i])
+            #write_files(resp, result_dir, file_list[i])
